@@ -69,23 +69,23 @@ func (t *trie) insert(methods []string, path string, handler http.Handler, mws m
 	}
 
 	paths := expandPath(path)
-	for i, path := range paths {
-		next, ok := curr.children[path]
+	for i, splitPath := range paths {
+		next, ok := curr.children[splitPath]
 
 		if ok {
 			curr = next
 		} else {
-			curr.children[path] = &node{
-				label:    path,
+			curr.children[splitPath] = &node{
+				label:    splitPath,
 				actions:  make(map[string]*action),
 				children: make(map[string]*node),
 			}
-			curr = curr.children[path]
+			curr = curr.children[splitPath]
 		}
 
 		// Overwrite existing data on last path
 		if i == len(paths)-1 {
-			curr.label = path
+			curr.label = splitPath
 			for _, method := range methods {
 				curr.actions[method] = &action{
 					handler:     handler,
