@@ -1,6 +1,7 @@
 package turnpike
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -15,6 +16,15 @@ type testCase struct {
 	method string
 	code   int
 	body   string
+}
+
+type mockFileSystem struct {
+	opened bool
+}
+
+func (mfs *mockFileSystem) Open(name string) (http.File, error) {
+	mfs.opened = true
+	return nil, errors.New("")
 }
 
 func TestNewRouter(t *testing.T) {
@@ -332,6 +342,37 @@ func TestCustomMethodNotAllowedHandler(t *testing.T) {
 	}
 
 	runHTTPTests(t, r, tests)
+}
+
+func TestFileHandler(t *testing.T) {
+	r := NewRouter()
+	mfs := &mockFileSystem{}
+	r.FileHandler("/", mfs).Register()
+	rec := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/", nil)
+
+	if mfs.opened {
+		t.Error("serving file failed")
+	}
+
+	r.ServeHTTP(rec, req)
+
+	if !mfs.opened {
+		t.Error("serving file failed")
+	}
+}
+
+func TestFileHandlerInvariantViolation(t *testing.T) {
+	r := NewRouter()
+	mfs := &mockFileSystem{}
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("Expected an invariant violation panic")
+		}
+	}()
+
+	r.FileHandler("/", mfs).WithMethods(http.MethodPost).Register()
 }
 
 func runHTTPTests(t *testing.T, r *Router, tests []testCase) {

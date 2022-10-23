@@ -14,10 +14,11 @@ type Router struct {
 
 // Route represents a route record to be used by a Router.
 type Route struct {
-	methods     []string
-	path        string
-	handler     http.Handler
-	middlewares middlewares
+	methods       []string
+	path          string
+	handler       http.Handler
+	middlewares   middlewares
+	isFileHandler bool
 }
 
 var (
@@ -59,6 +60,20 @@ func (r *Router) Handler(path string, handler http.Handler) *Router {
 	return r
 }
 
+// FileHandler registers a route handler as a file server, serving the directory qualified as `path`.
+// This method effectively replaces the `Handler()` stage of the route pipeline.
+// @todo allow usage of custom NotFoundHandler
+func (r *Router) FileHandler(path string, root http.FileSystem) *Router {
+	fileServer := http.FileServer(root)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		fileServer.ServeHTTP(w, req)
+	})
+
+	cachedRoute.isFileHandler = true
+	return r.Handler(path, handler).WithMethods(http.MethodGet)
+}
+
 // Register registers the current Route record. This method must be invoked to register the Route.
 func (r *Router) Register() {
 	if len(cachedRoute.methods) == 0 {
@@ -67,6 +82,10 @@ func (r *Router) Register() {
 
 	if cachedRoute.path == "" || cachedRoute.handler == nil {
 		panic("Cannot register a route handler with no specified path or handler.")
+	}
+
+	if cachedRoute.isFileHandler && len(cachedRoute.methods) > 1 {
+		panic("Cannot register a file route handler with HTTP methods other than GET.")
 	}
 
 	r.trie.insert(cachedRoute.methods, cachedRoute.path, cachedRoute.handler, cachedRoute.middlewares)
